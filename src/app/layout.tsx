@@ -1,20 +1,13 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+import { ConvexClientProvider } from "@/lib/convex";
+import { ClerkClientProvider } from "@/lib/clerk";
+import { Toaster } from "@/components/ui/sonner";
 
 export const metadata: Metadata = {
-  title: "Next Template",
-  description: "Scaffolded with shadcn/ui",
+  title: "WasteTracker — Stop Wasting, Start Saving",
+  description:
+    "Track bakery waste in seconds. See real-time dollar impact. Cut waste by 20-30% in your first month.",
 };
 
 export default function RootLayout({
@@ -24,10 +17,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        {children}
+      <body className="antialiased" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+        <ClerkClientProvider>
+          <ConvexClientProvider>
+            {children}
+            <Toaster />
+          </ConvexClientProvider>
+        </ClerkClientProvider>
       </body>
     </html>
   );
