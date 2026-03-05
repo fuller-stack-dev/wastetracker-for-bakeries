@@ -1,15 +1,47 @@
-# Builder Instructions — wastetracker-wire-backend-fix-css-import-implement-auth-flow
+# Builder Instructions — wastetracker-for-bakeries
 
-Source: Postgres tasks.design_plan (page_id: 319b1d36-b041-8169-a095-c24b1c55eaed)
+## Fix Mission (QA Round 2 — AUTO-GENERATED)
+**Parent ticket:** 317b1d36-b041-8165-9664-f6badc447fc0
+**Parent title:** WasteTracker for Bakeries
+**Project dir:** /home/jay/.openclaw/workspace/projects/wastetracker-for-bakeries
+**Generated:** 2026-03-05T02:51:57Z
 
+⚠️  Work in THIS directory only: `/home/jay/.openclaw/workspace/projects/wastetracker-for-bakeries`
+⚠️  DO NOT scaffold a new repo or clone fresh.
 
-## QA Round 1 Bug Report
-P0 CSS @import order causes 500 in dev mode: @import url() for Google Fonts was placed after @tailwind directives in globals.css. Turbopack strict CSS parser rejects this, returning 500 on every page in dev mode. Fix: move @import url() to the very top of globals.css. NOTE: this was hot-fixed during QA.
-P1 Zero backend wiring: All 5 app pages use hardcoded demo data arrays. No useQuery/useMutation calls to Convex despite schema+functions existing. Log Waste shows Logged confirmation but never persists. Products Edit/Delete buttons have no handlers. Settings Save/Upgrade/Invite/Delete are non-functional. Analytics period toggle shows identical data for all periods.
-P1 No auth flow: No sign-in/sign-up pages. App routes completely unprotected. Sign Out just navigates to /. Clerk provider is placeholder-only.
+---
 
-## What Passed
-Build succeeds. Landing page renders correctly. Responsive layout works at 375/768/1440px. Color palette and typography correct. Zero console errors. Hero image renders via Next.js Image. Sidebar nav with active states works. Mobile hamburger menu works. Visual design quality is high.
+## Bugs to Fix (Round 2)
 
-## Screenshots
-Landing 1440: https://i.imgur.com/38wrGDg.png | Dashboard: https://i.imgur.com/UNVquID.png | Log: https://i.imgur.com/astpaoW.png | Analytics: https://i.imgur.com/oX2T7Xk.png | Products: https://i.imgur.com/2ZBQdpq.png | Landing 375: https://i.imgur.com/dkHIfGI.png
+### P0 — Blockers
+
+#### P0-1: Landing page shows Next Template placeholder instead of marketing page
+src/app/page.tsx contains a placeholder Next Template page that shadows the real marketing landing at src/app/(marketing)/page.tsx. The root / route never renders the Hero, Features, Pricing, or Footer components. Fix: delete src/app/page.tsx so the (marketing) route group serves / correctly.
+
+### P1 — Major
+
+#### P1-1: GitHub SVG icon overflows entire viewport on sign-in and sign-up pages
+The GitHub Octocat SVG inside the Continue with GitHub button on both /sign-in and /sign-up pages renders at full intrinsic size (~500px), filling the viewport. The SVG element lacks width/height constraints. Fix: add explicit w-5 h-5 class to the GitHub SVG/img element in src/app/(auth)/sign-in/page.tsx and src/app/(auth)/sign-up/page.tsx.
+
+#### P1-2: Dashboard stat cards render single-column at 1440px desktop — grid layout broken
+The stat cards grid (grid-cols-1 sm:grid-cols-2 lg:grid-cols-4) in src/app/(app)/dashboard/page.tsx renders as a single column at 1440px viewport width. The grid classes are not taking effect at lg breakpoint. Verify Tailwind config and container width. Cards should display as a 4-column row on desktop.
+
+#### P1-3: Missing favicon — 404 on /favicon.ico
+Console error: Failed to load resource: 404 on /favicon.ico. No favicon file exists in the public directory. Fix: add a favicon.ico or favicon.svg to public/ and reference it in root layout metadata.
+
+## Screenshots (Round 2)
+
+- **Dashboard 1440px — single-column grid bug**: https://i.imgur.com/sjAc4A2.png
+- **Sign-in 375px — GitHub SVG overflow**: https://i.imgur.com/xVJ0WDN.png
+
+## Completion Protocol
+
+1. Fix every P0 and P1 above — surgical edits only, no refactoring unrelated code.
+2. Run `npm run build` — must exit 0.
+3. Commit: `git add -A && git commit -m 'fix: <desc>' && git push`
+4. Mark fix ticket done + re-queue parent:
+   ```bash
+   bash scripts/set-ticket-status.sh <FIX_TICKET_ID> done fix-done
+   bash scripts/set-ticket-status.sh 317b1d36-b041-8165-9664-f6badc447fc0 ready_for_testing fix-applied
+   ```
+5. Discord: 🔧 Fix applied — re-queuing QA: WasteTracker for Bakeries

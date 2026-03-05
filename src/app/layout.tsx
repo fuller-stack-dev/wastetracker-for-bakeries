@@ -8,6 +8,9 @@ export const metadata: Metadata = {
   title: "WasteTracker — Stop Wasting, Start Saving",
   description:
     "Track bakery waste in seconds. See real-time dollar impact. Cut waste by 20-30% in your first month.",
+  icons: {
+    icon: "/favicon.svg",
+  },
 };
 
 export default function RootLayout({
