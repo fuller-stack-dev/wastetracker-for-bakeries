@@ -31,7 +31,7 @@ export function Hero() {
             </p>
             <div className="animate-fade-slide-up animation-delay-600 flex flex-col sm:flex-row gap-4">
               <Link
-                href="/dashboard"
+                href="/sign-up"
                 className="inline-flex items-center justify-center px-8 py-4 text-base font-semibold rounded-xl bg-[var(--color-sienna)] text-white hover:bg-[var(--color-sienna-dark)] transition-all shadow-lg shadow-[var(--color-sienna)]/25 hover:shadow-xl hover:shadow-[var(--color-sienna)]/30 hover:-translate-y-0.5"
               >
                 Start Free Trial

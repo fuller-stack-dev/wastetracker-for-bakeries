@@ -22,13 +22,13 @@ export default function MarketingLayout({
           </Link>
           <div className="flex items-center gap-4">
             <Link
-              href="/dashboard"
+              href="/sign-in"
               className="text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
             >
               Sign In
             </Link>
             <Link
-              href="/dashboard"
+              href="/sign-up"
               className="text-sm font-semibold px-4 py-2 rounded-lg bg-[var(--color-sienna)] text-white hover:bg-[var(--color-sienna-dark)] transition-colors"
             >
               Get Started Free

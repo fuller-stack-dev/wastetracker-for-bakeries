@@ -1,9 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Download, Calendar, TrendingDown } from "lucide-react";
+import { useQuery } from "convex/react";
+import { api } from "@/lib/convex-api";
+import { useApp } from "@/lib/app-context";
 
-const dailyData = [
+// Demo data fallback
+const demoDailyData = [
   { date: "Feb 24", total: 62.0, entries: 8 },
   { date: "Feb 25", total: 45.5, entries: 5 },
   { date: "Feb 26", total: 58.0, entries: 7 },
@@ -15,7 +19,7 @@ const dailyData = [
   { date: "Mar 4", total: 47.5, entries: 6 },
 ];
 
-const byReason = [
+const demoByReason = [
   { reason: "Overproduction", total: 145.0, pct: 38 },
   { reason: "Expired", total: 95.5, pct: 25 },
   { reason: "Spoilage", total: 72.0, pct: 19 },
@@ -23,7 +27,7 @@ const byReason = [
   { reason: "Returned", total: 28.5, pct: 7 },
 ];
 
-const byProduct = [
+const demoByProduct = [
   { name: "Sourdough Boule", total: 108.0, entries: 18 },
   { name: "Almond Croissant", total: 72.5, entries: 29 },
   { name: "Rye Bread", total: 58.5, entries: 13 },
@@ -32,16 +36,82 @@ const byProduct = [
 ];
 
 type Range = "7d" | "14d" | "30d";
+const rangeDays: Record<Range, number> = { "7d": 7, "14d": 14, "30d": 30 };
 
 export default function AnalyticsPage() {
+  const { bakeryId, isDemo } = useApp();
   const [range, setRange] = useState<Range>("7d");
 
-  const weeklyTotal = dailyData.reduce((s, d) => s + d.total, 0);
-  const max = Math.max(...dailyData.map((d) => d.total));
+  const days = rangeDays[range];
+
+  // Wire to Convex
+  const dailyTotals = useQuery(
+    api.analytics.getDailyTotals,
+    bakeryId ? { bakeryId, days } : "skip"
+  );
+
+  const now = Date.now();
+  const startDate = now - days * 24 * 60 * 60 * 1000;
+  const byReasonData = useQuery(
+    api.analytics.getByReason,
+    bakeryId ? { bakeryId, startDate, endDate: now } : "skip"
+  );
+
+  const products = useQuery(
+    api.products.listProducts,
+    bakeryId ? { bakeryId } : "skip"
+  );
+
+  // Compute display data
+  const dailyData = useMemo(() => {
+    if (isDemo || !dailyTotals) return demoDailyData;
+    return dailyTotals.map((d: any) => ({
+      date: new Date(d.date).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+      total: d.totalDollarWaste,
+      entries: d.entryCount,
+    }));
+  }, [isDemo, dailyTotals]);
+
+  const byReason = useMemo(() => {
+    if (isDemo || !byReasonData) return demoByReason;
+    const totalAll = byReasonData.reduce((s: number, r: any) => s + r.totalDollarWaste, 0);
+    return byReasonData
+      .sort((a: any, b: any) => b.totalDollarWaste - a.totalDollarWaste)
+      .map((r: any) => ({
+        reason: r.reason.charAt(0).toUpperCase() + r.reason.slice(1),
+        total: r.totalDollarWaste,
+        pct: totalAll > 0 ? Math.round((r.totalDollarWaste / totalAll) * 100) : 0,
+      }));
+  }, [isDemo, byReasonData]);
+
+  const byProduct = useMemo(() => {
+    if (isDemo || !dailyTotals || !products) return demoByProduct;
+    // Aggregate top products from daily totals
+    const productTotals = new Map<string, { total: number; entries: number }>();
+    for (const day of dailyTotals as any[]) {
+      if (day.topProduct) {
+        const existing = productTotals.get(day.topProduct) || { total: 0, entries: 0 };
+        existing.total += day.totalDollarWaste;
+        existing.entries += day.entryCount;
+        productTotals.set(day.topProduct, existing);
+      }
+    }
+    return Array.from(productTotals.entries())
+      .sort((a, b) => b[1].total - a[1].total)
+      .slice(0, 5)
+      .map(([pid, data]) => ({
+        name: products.find((p: any) => p._id === pid)?.name || "Unknown",
+        total: data.total,
+        entries: data.entries,
+      }));
+  }, [isDemo, dailyTotals, products]);
+
+  const weeklyTotal = dailyData.reduce((s: number, d: any) => s + d.total, 0);
+  const max = Math.max(...dailyData.map((d: any) => d.total), 1);
 
   function exportCSV() {
     const header = "Date,Total Waste ($),Entries\n";
-    const rows = dailyData.map((d) => `${d.date},${d.total},${d.entries}`).join("\n");
+    const rows = dailyData.map((d: any) => `${d.date},${d.total},${d.entries}`).join("\n");
     const blob = new Blob([header + rows], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -108,7 +178,7 @@ export default function AnalyticsPage() {
             Daily Average
           </div>
           <p className="text-2xl font-bold" style={{ fontFamily: "var(--font-playfair)" }}>
-            ${(weeklyTotal / dailyData.length).toFixed(2)}
+            ${dailyData.length > 0 ? (weeklyTotal / dailyData.length).toFixed(2) : "0.00"}
           </p>
         </div>
         <div className="bg-white rounded-2xl border border-[var(--border)] p-6">
@@ -117,7 +187,7 @@ export default function AnalyticsPage() {
             Top Waste Reason
           </div>
           <p className="text-2xl font-bold" style={{ fontFamily: "var(--font-playfair)" }}>
-            {byReason[0].reason}
+            {byReason[0]?.reason || "—"}
           </p>
         </div>
       </div>
@@ -126,7 +196,7 @@ export default function AnalyticsPage() {
       <div className="bg-white rounded-2xl border border-[var(--border)] p-6">
         <h3 className="font-semibold mb-6">Daily Waste ($)</h3>
         <div className="flex items-end gap-3 h-44">
-          {dailyData.map((d) => (
+          {dailyData.map((d: any) => (
             <div key={d.date} className="flex-1 flex flex-col items-center gap-1">
               <span className="text-xs font-medium text-[var(--color-sienna)]">
                 ${d.total}

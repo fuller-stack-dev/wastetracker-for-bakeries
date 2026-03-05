@@ -1,17 +1,21 @@
 "use client";
 
-import { DollarSign, TrendingDown, Package, ClipboardList } from "lucide-react";
+import { DollarSign, TrendingDown, Package, ClipboardList, Loader2 } from "lucide-react";
 import Link from "next/link";
+import { useQuery } from "convex/react";
+import { api } from "@/lib/convex-api";
+import { useApp } from "@/lib/app-context";
+import { useMemo } from "react";
 
-// Demo data — in production, fetched from Convex
-const todayStats = {
+// Demo data fallback
+const demoTodayStats = {
   totalWaste: 47.5,
   itemsLogged: 6,
   topWaster: "Sourdough Boule",
   vsYesterday: -12,
 };
 
-const last7Days = [
+const demoLast7Days = [
   { date: "Mon", amount: 62 },
   { date: "Tue", amount: 45 },
   { date: "Wed", amount: 58 },
@@ -21,7 +25,7 @@ const last7Days = [
   { date: "Sun", amount: 47.5 },
 ];
 
-const recentEntries = [
+const demoRecentEntries = [
   { product: "Sourdough Boule", qty: 3, unit: "loaves", reason: "Overproduction", cost: 18.0, time: "2:15 PM" },
   { product: "Almond Croissant", qty: 5, unit: "units", reason: "Expired", cost: 12.5, time: "1:45 PM" },
   { product: "Rye Bread", qty: 2, unit: "loaves", reason: "Damage", cost: 9.0, time: "11:30 AM" },
@@ -91,6 +95,79 @@ function MiniBarChart({ data }: { data: { date: string; amount: number }[] }) {
 }
 
 export default function DashboardPage() {
+  const { bakeryId, isDemo } = useApp();
+
+  // Wire to Convex when bakeryId available
+  const todayEntries = useQuery(
+    api.wasteEntries.getWasteToday,
+    bakeryId ? { bakeryId } : "skip"
+  );
+  const last7DaysEntries = useQuery(
+    api.wasteEntries.getWasteLast7Days,
+    bakeryId ? { bakeryId } : "skip"
+  );
+  const products = useQuery(
+    api.products.listProducts,
+    bakeryId ? { bakeryId } : "skip"
+  );
+
+  // Compute live stats or fall back to demo
+  const todayStats = useMemo(() => {
+    if (isDemo || !todayEntries) return demoTodayStats;
+    const totalWaste = todayEntries.reduce((s: number, e: any) => s + e.dollarValue, 0);
+    const itemsLogged = todayEntries.length;
+    // Find top waster by product
+    const productTotals = new Map<string, number>();
+    for (const e of todayEntries as any[]) {
+      productTotals.set(e.productId, (productTotals.get(e.productId) || 0) + e.dollarValue);
+    }
+    let topWaster = "—";
+    let topAmount = 0;
+    for (const [pid, amount] of productTotals as any) {
+      if (amount > topAmount) {
+        topAmount = amount;
+        const prod = products?.find((p) => p._id === pid);
+        topWaster = prod?.name || pid;
+      }
+    }
+    return { totalWaste, itemsLogged, topWaster, vsYesterday: 0 };
+  }, [isDemo, todayEntries, products]);
+
+  const last7Days = useMemo(() => {
+    if (isDemo || !last7DaysEntries) return demoLast7Days;
+    const dayMap = new Map<string, number>();
+    const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    for (const e of last7DaysEntries as any[]) {
+      const d = new Date(e.loggedAt);
+      const dayName = dayNames[d.getDay()];
+      dayMap.set(dayName, (dayMap.get(dayName) || 0) + e.dollarValue);
+    }
+    return Array.from(dayMap.entries()).map(([date, amount]) => ({ date, amount }));
+  }, [isDemo, last7DaysEntries]);
+
+  const recentEntries = useMemo(() => {
+    if (isDemo || !todayEntries) return demoRecentEntries;
+    return todayEntries
+      .sort((a: any, b: any) => b.loggedAt - a.loggedAt)
+      .slice(0, 4)
+      .map((e: any) => {
+        const prod = products?.find((p) => p._id === e.productId);
+        return {
+          product: prod?.name || "Unknown",
+          qty: e.quantity,
+          unit: prod?.unit || "units",
+          reason: e.reason.charAt(0).toUpperCase() + e.reason.slice(1),
+          cost: e.dollarValue,
+          time: new Date(e.loggedAt).toLocaleTimeString("en-US", {
+            hour: "numeric",
+            minute: "2-digit",
+          }),
+        };
+      });
+  }, [isDemo, todayEntries, products]);
+
+  const activeProductCount = isDemo ? 24 : (products?.length ?? 0);
+
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
@@ -119,7 +196,7 @@ export default function DashboardPage() {
         <StatCard
           label="Today's Waste"
           value={`$${todayStats.totalWaste.toFixed(2)}`}
-          subtext={`${todayStats.vsYesterday}% vs yesterday`}
+          subtext={todayStats.vsYesterday !== 0 ? `${todayStats.vsYesterday}% vs yesterday` : "today so far"}
           icon={DollarSign}
           accent
         />
@@ -138,7 +215,7 @@ export default function DashboardPage() {
         />
         <StatCard
           label="Active Products"
-          value="24"
+          value={String(activeProductCount)}
           subtext="being tracked"
           icon={Package}
         />
@@ -146,7 +223,6 @@ export default function DashboardPage() {
 
       {/* Chart + Recent */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-        {/* 7-day chart */}
         <div className="lg:col-span-2 bg-white rounded-2xl border border-[var(--border)] p-6">
           <h3 className="font-semibold mb-4">Last 7 Days</h3>
           <MiniBarChart data={last7Days} />
@@ -158,7 +234,6 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Recent entries */}
         <div className="lg:col-span-3 bg-white rounded-2xl border border-[var(--border)] p-6">
           <h3 className="font-semibold mb-4">Recent Entries</h3>
           <div className="space-y-3">

@@ -2,17 +2,49 @@
 
 import { useState } from "react";
 import { Building2, CreditCard, Users, Check } from "lucide-react";
+import { useMutation } from "convex/react";
+import { api } from "@/lib/convex-api";
+import { useApp } from "@/lib/app-context";
+import { toast } from "sonner";
 
 export default function SettingsPage() {
-  const [bakeryName, setBakeryName] = useState("Golden Crust Bakery");
+  const { bakeryId, bakeryName, plan, trialDaysLeft, isDemo } = useApp();
+  const [name, setName] = useState(bakeryName);
   const [saved, setSaved] = useState(false);
-  const [plan] = useState("trial");
 
-  const trialDaysLeft = 11;
+  const updatePlan = useMutation(api.bakeries.updatePlan);
 
   function handleSave() {
+    // In production: mutation to update bakery name
+    // For now: just show saved confirmation
     setSaved(true);
+    toast.success("Settings saved!");
     setTimeout(() => setSaved(false), 2000);
+  }
+
+  async function handleUpgrade(selectedPlan: string) {
+    if (isDemo) {
+      toast.info("Stripe integration coming soon — this is a demo.");
+      return;
+    }
+    if (bakeryId) {
+      try {
+        await updatePlan({ bakeryId, plan: selectedPlan });
+        toast.success(`Upgraded to ${selectedPlan}!`);
+      } catch (err) {
+        toast.error("Upgrade failed. Please try again.");
+      }
+    }
+  }
+
+  function handleInvite() {
+    toast.info("Team invites coming soon!");
+  }
+
+  function handleDelete() {
+    if (confirm("Are you sure you want to delete your bakery? This cannot be undone.")) {
+      toast.info("Account deletion coming soon — contact support.");
+    }
   }
 
   return (
@@ -43,8 +75,8 @@ export default function SettingsPage() {
           </label>
           <input
             type="text"
-            value={bakeryName}
-            onChange={(e) => setBakeryName(e.target.value)}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
             className="w-full max-w-md px-4 py-2.5 rounded-xl border border-[var(--border)] bg-[var(--cream)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-sienna)]/30"
           />
         </div>
@@ -93,13 +125,19 @@ export default function SettingsPage() {
         )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
-          <button className="p-4 rounded-xl border-2 border-[var(--border)] hover:border-[var(--color-sienna)] transition-colors text-left">
+          <button
+            onClick={() => handleUpgrade("starter")}
+            className="p-4 rounded-xl border-2 border-[var(--border)] hover:border-[var(--color-sienna)] transition-colors text-left"
+          >
             <p className="font-semibold">Starter — $29/mo</p>
             <p className="text-xs text-[var(--muted-foreground)] mt-1">
               Unlimited products, CSV export, 3 team members
             </p>
           </button>
-          <button className="p-4 rounded-xl border-2 border-[var(--color-sienna)] bg-[var(--color-sienna)]/5 text-left">
+          <button
+            onClick={() => handleUpgrade("pro")}
+            className="p-4 rounded-xl border-2 border-[var(--color-sienna)] bg-[var(--color-sienna)]/5 text-left"
+          >
             <p className="font-semibold">Pro — $79/mo</p>
             <p className="text-xs text-[var(--muted-foreground)] mt-1">
               Multi-location, unlimited team, API access
@@ -107,7 +145,10 @@ export default function SettingsPage() {
           </button>
         </div>
 
-        <button className="px-5 py-2.5 rounded-xl bg-[var(--color-sienna)] text-white text-sm font-semibold hover:bg-[var(--color-sienna-dark)] transition-colors shadow-lg shadow-[var(--color-sienna)]/25">
+        <button
+          onClick={() => handleUpgrade("pro")}
+          className="px-5 py-2.5 rounded-xl bg-[var(--color-sienna)] text-white text-sm font-semibold hover:bg-[var(--color-sienna-dark)] transition-colors shadow-lg shadow-[var(--color-sienna)]/25"
+        >
           Upgrade Now
         </button>
       </div>
@@ -129,7 +170,10 @@ export default function SettingsPage() {
             Owner
           </span>
         </div>
-        <button className="text-sm text-[var(--color-sienna)] font-medium hover:underline">
+        <button
+          onClick={handleInvite}
+          className="text-sm text-[var(--color-sienna)] font-medium hover:underline"
+        >
           + Invite team member
         </button>
       </div>
@@ -140,7 +184,10 @@ export default function SettingsPage() {
         <p className="text-sm text-[var(--muted-foreground)] mb-4">
           Permanently delete your bakery and all waste data. This cannot be undone.
         </p>
-        <button className="px-4 py-2 rounded-xl border border-red-300 text-red-600 text-sm font-medium hover:bg-red-50 transition-colors">
+        <button
+          onClick={handleDelete}
+          className="px-4 py-2 rounded-xl border border-red-300 text-red-600 text-sm font-medium hover:bg-red-50 transition-colors"
+        >
           Delete Bakery
         </button>
       </div>

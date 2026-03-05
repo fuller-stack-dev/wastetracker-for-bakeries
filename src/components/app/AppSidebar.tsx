@@ -95,7 +95,7 @@ export function AppSidebar() {
 
         <div className="p-3 border-t border-[var(--border)]">
           <Link
-            href="/"
+            href="/sign-in"
             className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-[var(--muted-foreground)] hover:bg-[var(--accent)] hover:text-[var(--foreground)] transition-colors"
           >
             <LogOut className="w-5 h-5" />

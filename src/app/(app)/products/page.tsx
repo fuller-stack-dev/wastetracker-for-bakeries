@@ -1,7 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Pencil, Trash2, Search, Package } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, Package, Loader2 } from "lucide-react";
+import { useQuery, useMutation } from "convex/react";
+import { api } from "@/lib/convex-api";
+import { useApp } from "@/lib/app-context";
+import { Id } from "@/lib/convex-api";
 
 interface Product {
   id: string;
@@ -123,11 +127,33 @@ function ProductForm({
 }
 
 export default function ProductsPage() {
-  const [products, setProducts] = useState<Product[]>(initialProducts);
+  const { bakeryId, isDemo } = useApp();
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);
   const [filterCat, setFilterCat] = useState<string>("all");
+
+  // Wire to Convex
+  const convexProducts = useQuery(
+    api.products.listProducts,
+    bakeryId ? { bakeryId } : "skip"
+  );
+  const createProduct = useMutation(api.products.createProduct);
+  const updateProduct = useMutation(api.products.updateProduct);
+  const deleteProduct = useMutation(api.products.deleteProduct);
+
+  // Local state for demo mode
+  const [demoProducts, setDemoProducts] = useState<Product[]>(initialProducts);
+
+  const products: Product[] = (!isDemo && convexProducts)
+    ? convexProducts.map((p: any) => ({
+        id: p._id,
+        name: p.name,
+        unit: p.unit,
+        costPerUnit: p.costPerUnit,
+        category: p.category,
+      }))
+    : demoProducts;
 
   const filtered = products.filter(
     (p) =>
@@ -135,19 +161,34 @@ export default function ProductsPage() {
       (filterCat === "all" || p.category === filterCat)
   );
 
-  function handleAdd(data: Omit<Product, "id">) {
-    setProducts([...products, { ...data, id: String(Date.now()) }]);
+  async function handleAdd(data: Omit<Product, "id">) {
+    if (!isDemo && bakeryId) {
+      await createProduct({ bakeryId, ...data });
+    } else {
+      setDemoProducts([...demoProducts, { ...data, id: String(Date.now()) }]);
+    }
     setShowForm(false);
   }
 
-  function handleEdit(data: Omit<Product, "id">) {
+  async function handleEdit(data: Omit<Product, "id">) {
     if (!editing) return;
-    setProducts(products.map((p) => (p.id === editing.id ? { ...p, ...data } : p)));
+    if (!isDemo) {
+      await updateProduct({
+        productId: editing.id as Id<"products">,
+        ...data,
+      });
+    } else {
+      setDemoProducts(demoProducts.map((p) => (p.id === editing.id ? { ...p, ...data } : p)));
+    }
     setEditing(null);
   }
 
-  function handleDelete(id: string) {
-    setProducts(products.filter((p) => p.id !== id));
+  async function handleDelete(id: string) {
+    if (!isDemo) {
+      await deleteProduct({ productId: id as Id<"products"> });
+    } else {
+      setDemoProducts(demoProducts.filter((p) => p.id !== id));
+    }
   }
 
   return (

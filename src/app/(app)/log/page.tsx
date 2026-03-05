@@ -2,6 +2,9 @@
 
 import { useState } from "react";
 import { Check, Plus } from "lucide-react";
+import { useQuery, useMutation } from "convex/react";
+import { api } from "@/lib/convex-api";
+import { useApp } from "@/lib/app-context";
 
 const demoProducts = [
   { id: "1", name: "Sourdough Boule", unit: "loaves", costPerUnit: 6.0, category: "bread" },
@@ -23,21 +26,58 @@ const reasons = [
 ];
 
 export default function LogWastePage() {
+  const { bakeryId, userId, isDemo } = useApp();
   const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [reason, setReason] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [search, setSearch] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const product = demoProducts.find((p) => p.id === selectedProduct);
+  // Wire to Convex
+  const convexProducts = useQuery(
+    api.products.listProducts,
+    bakeryId ? { bakeryId } : "skip"
+  );
+  const logWasteMutation = useMutation(api.wasteEntries.logWaste);
+
+  // Use Convex products when available, else demo
+  const productList = (!isDemo && convexProducts)
+    ? convexProducts.map((p: any) => ({
+        id: p._id,
+        name: p.name,
+        unit: p.unit,
+        costPerUnit: p.costPerUnit,
+        category: p.category,
+      }))
+    : demoProducts;
+
+  const product = productList.find((p) => p.id === selectedProduct);
   const dollarValue = product ? quantity * product.costPerUnit : 0;
 
-  const filtered = demoProducts.filter((p) =>
+  const filtered = productList.filter((p) =>
     p.name.toLowerCase().includes(search.toLowerCase())
   );
 
-  function handleSubmit() {
+  async function handleSubmit() {
     if (!selectedProduct || !reason) return;
+
+    if (!isDemo && bakeryId && userId) {
+      setIsSubmitting(true);
+      try {
+        await logWasteMutation({
+          bakeryId,
+          productId: selectedProduct as any,
+          quantity,
+          reason,
+          loggedBy: userId,
+        });
+      } catch (err) {
+        console.error("Failed to log waste:", err);
+      }
+      setIsSubmitting(false);
+    }
+
     setSubmitted(true);
     setTimeout(() => {
       setSubmitted(false);
@@ -174,10 +214,10 @@ export default function LogWastePage() {
       {/* Submit */}
       <button
         onClick={handleSubmit}
-        disabled={!selectedProduct || !reason}
+        disabled={!selectedProduct || !reason || isSubmitting}
         className="w-full py-4 rounded-xl bg-[var(--color-sienna)] text-white font-semibold text-base hover:bg-[var(--color-sienna-dark)] transition-all shadow-lg shadow-[var(--color-sienna)]/25 disabled:opacity-40 disabled:cursor-not-allowed"
       >
-        Log Waste {dollarValue > 0 ? `— $${dollarValue.toFixed(2)}` : ""}
+        {isSubmitting ? "Logging..." : `Log Waste ${dollarValue > 0 ? `— $${dollarValue.toFixed(2)}` : ""}`}
       </button>
     </div>
   );
